@@ -1,0 +1,254 @@
+---
+title: "Ejercicio2 - Tarea 8"
+author: 
+  - "Flores Castillo Vanessa - 314130822 "
+  - "Morales Déciga Moisés - 314156277"
+date: "11/12/2020"
+output: pdf_document
+---
+
+## Calcule la reserva bajo diferentes métodos y explique. 
+
+Primero, lo calcularemos de forma deterministíca utilizando una tabla de mortalidad que tiene el siguiente comportamiento.
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+library(readr)
+library(plotly)
+
+#Para correr este codigo es necesario cambiar la dirección del excel
+
+qx <- read_csv("C:/Users/maxze/Downloads/AAR/Largo Plazo/Largo Plazo/qx.csv")
+graph <- qx %>% ggplot(aes(edad,qx)) +
+                geom_point(alpha=0.8,size=1.2,colour="mediumpurple3") +
+                geom_line(alpha=0.6,size=0.5,colour="gray40",linetype = "longdash")+
+                scale_x_continuous(name="Edad Asegurado", limits=c(0, 110),breaks = seq(0,110,2))+
+                scale_y_continuous(name=("q_x^{HyM}"), limits=c(0, 0.8))+
+                labs(title="Gráfica qx",
+                     subtitle="CNSF-2013M")+
+                theme(
+                  plot.title = element_text(color = "black", size = 13, face = "bold"),
+                  plot.subtitle = element_text(color = "gray30",size = 9))
+plot(graph)
+
+```
+
+Vamos a tener los siguientes supuestos e hipótesis.
+
+
+Vamos a suponer lo siguiente:
+
+Seguro de vida temporal a 10 años
+
+tasa constante del 5% 
+
+SA fallecimiento: 650,000 pesos
+
+Edad actual del asegurado 25 años
+
+Prima: $2,800 anuales
+
+Dividendos: $450 pesos anuales
+
+GA $150 pesos anuales
+
+CA $400 pesos anuales
+
+
+Decidimos ocupar estas nuevas hipótesis tomando como referencia un producto de que nos han ofrecido por parte de un banco. Decidimos redondear la edad a 25 años. La suma asegurada y la prima son las que nos han ofrecido. 
+Decidimos mantener los costos y dividendos ya que no pensamos que sean elevados para nuestro caso. 
+
+De igual forma, mantenemos la tasa del ejercicio del 5% ya que nos parece adecuada al ser más elevada que la tasa de cetes, pero no tan lejana a ella.
+
+Al considerar una prima baja y una edad baja, decidimos reducir la cantidad de años del seguro temporal. Intuitivamente pensamos que si es más joven, la probabilidad de morir es baja y la prima tendrá que ser baja. Pero si dejamos una prima baja para una temporalidad larga, puede que esa prima no sea suficiente, a pesar que la suma asegurada no es elevada.
+
+```{r, echo=FALSE}
+
+# Definimos la función de valor presente
+vp <- function(i,t){
+  vp <- (1+i)^-t
+  return(vp)
+}
+
+# Definimos la funcion de anualidad anticipada
+
+aa <- function(i,t){
+  aa <- ((1-(1+i)^-t)/i)*(1+i)
+  return(aa)
+}
+
+# Definimos funcion de mortalidad diferida
+qx_kd <- function(qx,x,k){
+  if(k==0){
+    qx_kd <- qx[qx$edad==x,]$qx}
+  else{
+    qx_kd <- prod(1-qx[(x+1):(x+k),]$qx)*qx[qx$edad==(x+k),]$qx}
+  return(qx_kd)
+}
+
+# Definimos la funcion de proba de no abandono
+px_t <- function(qx,x,k){
+  if(k==0){
+    px_t <- 1-qx[qx$edad==x,]$qx}
+  else{
+    px_t <- prod(1-qx[(x+1):(x+k+1),]$qx)}
+  return(px_t)
+}
+# Definimos la tasa i
+i=0.05
+
+# Definimos n de la temporalidad
+n=10
+
+# Definimos la edad inicial
+x=25
+
+# Definimos la SA
+SA=650000
+
+
+# Definimos los Dividendos
+D=450
+
+# Definimos GA Y CA
+GA=150
+CA=400
+
+# Definimos PRIMA
+P=2800
+
+# VP Egresos por SA
+rt=0
+for (k in 0:(n-1)) {
+  c<- vp(i,k+1)*qx_kd(qx,x,k)*SA
+  rt=rt+c
+}
+
+# VP Egresos por Div
+rd=0
+for (k in 0:(n-1)) {
+  c<- vp(i,k+1)*px_t(qx,x,k)*D
+  rd=rd+c
+}
+
+# VP Egresos por Costos
+rc=0
+for (k in 0:(n-1)) {
+  c<- vp(i,k)*px_t(qx,x,k)*GA + vp(i,k)*px_t(qx,x,k)*CA
+  rc=rc+c
+}
+
+# VP Ingresos por primas
+rp=0
+for (k in 0:(n-1)) {
+  c<- vp(i,k)*px_t(qx,x,k)*P  
+  rp=rp+c
+}
+
+# Cual es el valor de la reserva para este asegurado?
+reserva1Moy=rt+rd+rc-rp
+
+
+# Como puedo calcular mi reserva estocastica?
+
+# Definimos numero de simulaciones
+n.sim=60*100
+reserva2Moy <- 1:n.sim
+
+
+for (j in 1:n.sim){
+  qx_i <- qx
+  qx_i$qx <- 1-(1-qx$qx)^runif(1,0,2)
+  
+  # VP Egresos por SA
+  rt=0
+  for (k in 0:(n-1)) {
+    c<- vp(i,k+1)*qx_kd(qx_i,x,k)*SA
+    rt=rt+c
+  }
+  
+  # VP Egresos por Div
+  rd=0
+  for (k in 0:(n-1)) {
+    c<- vp(i,k+1)*px_t(qx_i,x,k)*D
+    rd=rd+c
+  }
+  
+  # VP Egresos por Costos
+  rc=0
+  for (k in 0:(n-1)) {
+    c<- vp(i,k)*px_t(qx_i,x,k)*GA + vp(i,k)*px_t(qx_i,x,k)*CA
+    rc=rc+c
+  }
+  
+  # VP Ingresos por primas
+  rp=0
+  for (k in 0:(n-1)) {
+    c<- vp(i,k)*px_t(qx_i,x,k)*P  
+    rp=rp+c
+  }
+  
+  
+  # Cual es el valor de la reserva para este asegurado?
+  reserva2Moy[j]=rt+rd+rc-rp
+  
+}
+
+
+reserva2Moy <- data.frame(x=1:length(reserva2Moy),RESERVAMOY=reserva2Moy)
+
+reserva.mediaMoy <- mean(reserva2Moy$RESERVAMOY)
+reserva.995Moy <- quantile(reserva2Moy$RESERVAMOY,0.995)
+```
+
+La reserva deterministica nos da un valor de:
+
+```{r, echo=F}
+formatC(reserva1Moy, format="f", big.mark=",", digits=2) 
+```
+
+Este caso nos parece muy interesante. Nos esta arrojando una reserva negativa, es decir, que no necesitaríamos generar una reserva para este caso. 
+
+Intuitivamente no genera sentido hablar de una reserva negativa porque, el banco que me está ofreciendo este producto tiene una deuda, y mis primas son menores que la suma asegura, a pesar que la suma asegura no sea cuantiosa. 
+
+Pero, revisemos que ocurre matemáticamente, el asegurado es una persona joven, cuya probabilidad de morir es baja. Si vemos la edad que tiene y la duración del seguro, la probilidad en ese periodo de que fallezca es muy pequeña (viendo la gráfica de arriba). 
+
+
+Ahora,  revisando las reservas estocásticas tenemos los siguientes valores.
+
+NOTA: Al hacer este ejercicio en Markdown, no sabemos que montos nos van a salir, ya que cada vez que lo imprimimos, salen diferentes resultados por las simulaciones. Después de correr varias veces el programa encontramos que los resultados salían menores a cero, como en el caso determinístico. También, la reserva media nos da un valor menor que la reserva al 99.5%.
+
+La reserva media nos da un valor de:
+
+```{r, echo=F}
+formatC(reserva.mediaMoy, format="f", big.mark=",", digits=2) 
+```
+
+La reserva al 99.5% nos da un valor de:
+
+```{r, echo=F}
+formatC(reserva.995Moy, format="f", big.mark=",", digits=2) 
+```
+
+```{r, echo=F}
+
+reserva2Moy %>% ggplot(aes(x=x,y=RESERVAMOY)) +
+  geom_point(shape=0.8,size=0.2,color="deepskyblue4")+
+  geom_hline(yintercept = reserva.mediaMoy,colour="red",linetype = "longdash")+
+  geom_hline(yintercept = reserva.995Moy,colour="green",linetype = "longdash")
+
+```
+
+
+En ambos casos las reservas estocásticas son negativas. La reserva al 99.5% es menor que la reserva media. Pues, de manera análoga al caso determinista, la probabilidad de muerte en la duración es baja. Y el resto de la explicación es similar.
+
+Viendo el plot de arriba, vemos que la reserva del 99.5% se encuentra por arriba de la reserva media, pero están en valores negativos, por lo que su monto es menor. 
+
+Trabajar con montos negativos causa confusión para explicar, no necesitamos ahorrar para los siniestros y pues esto es falso. 
+
+Creemos que el banco ofrece este tipo de seguros a la gente joven para poder recolectar dinero para sus reservas y otros proyectos, ya que la siniestralidad puede resultar muy baja. Por otro lado, falta considerar a la cartera completa. Una sola persona es muy poca información y pese las simulaciones en los casos estocásticos, parecería que la siniestralidad esperada es muy baja hasta en casos extremos. 
+
+Esto me recuerda a las clases, cuando veíamos la primera media nivelada, donde los primeros años esta estaba por encima de los reclamos y genera reservas negativas y posteriormente, los siniestros aumentan y la prima se queda por debajo y justamente las reservas que ahora son insuficientes de la prima respecto a los siniestros, se ve compensado por el inicio que teniamos pocos siniestros y una prima alta. Se compensan al final.
+
+
+Si se quiere revisar el código con el que se trabajó, se encuentra en la siguiente página: https://github.com/MoisesMorales664/AAR-2020 con el nombre de "Ejercicio2Tarea8.rmd".
+
